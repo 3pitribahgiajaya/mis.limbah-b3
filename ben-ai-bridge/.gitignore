@@ -1,0 +1,9 @@
+# Never commit local credentials or environment files
+.env
+.env.*
+!.env.example
+.dev.vars
+wrangler.local.toml
+*.pem
+*.key
+service-account*.json
