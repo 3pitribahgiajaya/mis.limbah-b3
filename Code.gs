@@ -101,7 +101,7 @@ function processInternalQueue() {
     const allowed = ['HEALTHCHECK','DASHBOARD_REFRESH','CRM_DATA_QUALITY'];
     let processed = 0;
     tasks.forEach(t => {
-      if (processed >= 10 || t.STATUS !== 'PENDING' || allowed.indexOf(String(t.TASK_TYPE)) === -1) return;
+      if (processed >= 10 || ['PENDING','QUEUED'].indexOf(String(t.STATUS)) === -1 || allowed.indexOf(String(t.TASK_TYPE)) === -1) return;
       const result = {message:'Internal task processed by deterministic worker',taskType:t.TASK_TYPE,checkedAt:now_()};
       updateRowById_('AI_Tasks','TASK_ID',t.TASK_ID,{STATUS:'COMPLETED',RESULT_JSON:JSON.stringify(result),UPDATED_AT:now_(),ERROR:''});
       log_(t.ASSIGNEE_ID || 'SYSTEM','TASK_COMPLETED','AI_Tasks',t.TASK_ID,'SUCCESS',result);
@@ -112,6 +112,16 @@ function processInternalQueue() {
 }
 
 function createTask_(b) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) throw new Error('TASK_QUEUE_BUSY_RETRY');
+  try {
+    return createTaskLocked_(b);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function createTaskLocked_(b) {
   const type = String(b.taskType || '').toUpperCase();
   if (!type) throw new Error('TASK_TYPE_REQUIRED');
   const safeInternal = ['HEALTHCHECK','DASHBOARD_REFRESH','CRM_DATA_QUALITY','INTERNAL_RESEARCH','DRAFT_CONTENT','DRAFT_QUOTATION','LEAD_QUALIFICATION','CRM_UPDATE_DRAFT','REGULATORY_CHECK'];
@@ -128,7 +138,7 @@ function claimTask_(taskId, actorId) {
   if (!taskId || !actorId) throw new Error('TASK_AND_ACTOR_REQUIRED');
   const t = findById_('AI_Tasks','TASK_ID',taskId);
   if (!t) throw new Error('TASK_NOT_FOUND');
-  if (t.STATUS !== 'PENDING') throw new Error('TASK_NOT_CLAIMABLE:'+t.STATUS);
+  if (['PENDING','QUEUED'].indexOf(String(t.STATUS)) === -1) throw new Error('TASK_NOT_CLAIMABLE:'+t.STATUS);
   updateRowById_('AI_Tasks','TASK_ID',taskId,{STATUS:'IN_PROGRESS',ASSIGNEE_ID:actorId,UPDATED_AT:now_()});
   log_(actorId,'TASK_CLAIMED','AI_Tasks',taskId,'SUCCESS',{});
   return {taskId:taskId,status:'IN_PROGRESS'};
