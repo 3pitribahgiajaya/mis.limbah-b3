@@ -81,7 +81,7 @@ function setupWorkforce() {
   const existingIds = employeeSheet.getLastRow() > 1 ? employeeSheet.getRange(2,1,employeeSheet.getLastRow()-1,1).getDisplayValues().flat() : [];
   const newRows = BEN.ROLES.filter(r=>existingIds.indexOf(r[0])===-1).map(r=>r.concat([now_()]));
   if (newRows.length) employeeSheet.getRange(employeeSheet.getLastRow()+1,1,newRows.length,10).setValues(newRows);
-  log_('SYSTEM','SETUP','AI_Workforce','SUCCESS',{employeesSeeded:newRows.length});
+  log_('SYSTEM','SETUP','AI_Workforce','SETUP','SUCCESS',{employeesSeeded:newRows.length});
   return {sheets:Object.keys(BEN.SHEETS),employeesSeeded:newRows.length};
 }
 
@@ -135,7 +135,7 @@ function claimTask_(taskId, actorId) {
 function completeTask_(b) {
   const t = findById_('AI_Tasks','TASK_ID',b.taskId);
   if (!t) throw new Error('TASK_NOT_FOUND');
-  if (t.REQUIRES_APPROVAL === 'TRUE' && t.STATUS !== 'APPROVED') throw new Error('APPROVAL_REQUIRED');
+  if (t.REQUIRES_APPROVAL === 'TRUE') {\n    const approval = t.APPROVAL_ID ? findById_('AI_Approvals','APPROVAL_ID',t.APPROVAL_ID) : null;\n    if (!approval || approval.STATUS !== 'APPROVED') throw new Error('APPROVAL_REQUIRED');\n  }
   updateRowById_('AI_Tasks','TASK_ID',b.taskId,{STATUS:'COMPLETED',RESULT_JSON:JSON.stringify(b.result||{}),ERROR:'',UPDATED_AT:now_()});
   log_(b.actorId||'SYSTEM','TASK_COMPLETED','AI_Tasks',b.taskId,'SUCCESS',b.result||{});
   return {taskId:b.taskId,status:'COMPLETED'};
