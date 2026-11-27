@@ -32,15 +32,10 @@ const BEN = {
 };
 
 function doGet(e) {
-  try {
-    const action = String((e && e.parameter && e.parameter.action) || 'health');
-    if (action === 'health') return json_({ok:true,service:'BEN AI Workforce Bridge',mode:'SEMI_AUTOMATIC',externalActions:false,time:now_()});
-    if (!authorized_(e && e.parameter && e.parameter.key)) return json_({ok:false,error:'UNAUTHORIZED'},401);
-    if (action === 'dashboard_summary') return json_(dashboardSummary_());
-    if (action === 'list_tasks') return json_({ok:true,tasks:readObjects_('AI_Tasks').slice(-100)});
-    if (action === 'list_approvals') return json_({ok:true,approvals:readObjects_('AI_Approvals').filter(x=>x.STATUS==='PENDING').slice(-100)});
-    return json_({ok:false,error:'UNKNOWN_ACTION'},400);
-  } catch (err) { return json_({ok:false,error:String(err.message || err)},500); }
+  const action = String((e && e.parameter && e.parameter.action) || 'health');
+  if (action === 'health') return json_({ok:true,service:'BEN AI Workforce Bridge',mode:'SEMI_AUTOMATIC',externalActions:false,time:now_()});
+  // Authenticated reads use POST so API keys never appear in URL/query logs.
+  return json_({ok:false,error:'POST_REQUIRED_FOR_AUTHENTICATED_ACTIONS'});
 }
 
 function doPost(e) {
@@ -56,7 +51,7 @@ function doPost(e) {
       case 'complete_task': result = completeTask_(body); break;
       case 'create_approval': result = createApproval_(body); break;
       case 'decide_approval': result = decideApproval_(body); break;
-      case 'dashboard_summary': result = dashboardSummary_(); break;
+      case 'dashboard_summary': result = dashboardSummary_(); break;\n      case 'list_tasks': result = {tasks:readObjects_('AI_Tasks').slice(-100)}; break;\n      case 'list_approvals': result = {approvals:readObjects_('AI_Approvals').filter(x=>x.STATUS==='PENDING').slice(-100)}; break;
       case 'self_test': result = dryRunSelfTest(); break;
       default: return json_({ok:false,error:'UNKNOWN_ACTION'},400);
     }
@@ -113,7 +108,7 @@ function processInternalQueue() {
 function createTask_(b) {
   const type = String(b.taskType || '').toUpperCase();
   if (!type) throw new Error('TASK_TYPE_REQUIRED');
-  const requires = BEN.BLOCKED.indexOf(type) !== -1 || b.requiresApproval === true;
+  const safeInternal = ['HEALTHCHECK','DASHBOARD_REFRESH','CRM_DATA_QUALITY','INTERNAL_RESEARCH','DRAFT_CONTENT','DRAFT_QUOTATION','LEAD_QUALIFICATION','CRM_UPDATE_DRAFT','REGULATORY_CHECK'];\n  const requires = BEN.BLOCKED.indexOf(type) !== -1 || safeInternal.indexOf(type) === -1 || b.requiresApproval === true;
   const id = String(b.taskId || Utilities.getUuid());
   if (findById_('AI_Tasks','TASK_ID',id)) return {taskId:id,duplicate:true};
   const approvalId = requires ? createApproval_({requestedBy:b.assigneeId||'SYSTEM',actionType:type,targetType:'TASK',targetId:id,summary:b.summary||('Approval required for '+type),payload:b.payload||{},riskLevel:'HIGH'}).approvalId : '';
