@@ -1,0 +1,7 @@
+name = "ben-ai-bridge"
+main = "worker.js"
+compatibility_date = "2026-11-27"
+
+# Configure secrets with: npx wrangler secret put MCP_BEARER_TOKEN
+# and: npx wrangler secret put BEN_MCP_TOKEN
+# Set GAS_WEB_APP_URL as a Worker variable/secret in the Cloudflare dashboard.
