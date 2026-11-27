@@ -30,7 +30,7 @@ POST JSON:
 - `{"action":"create_approval","key":"...","actionType":"SEND_WHATSAPP","summary":"Review draft","payload":{}}`
 - `{"action":"self_test","key":"..."}`
 
-GET with query `action=list_tasks&key=...` or `action=list_approvals&key=...`.
+GET is public health only. All authenticated reads (list tasks, list approvals, dashboard summary) use POST JSON so the API key is not exposed in URL logs.
 
 ## Important limits
 This is the control plane, not a fully autonomous LLM. The 15-minute trigger only processes deterministic internal task types (health check, dashboard refresh, CRM data quality). AI research and drafting must be invoked by a connected model/worker. Continuous 24/7 availability depends on Google Apps Script quotas and account limits; no free service can promise unlimited uptime.
