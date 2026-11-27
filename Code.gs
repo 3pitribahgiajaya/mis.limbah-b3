@@ -51,7 +51,9 @@ function doPost(e) {
       case 'complete_task': result = completeTask_(body); break;
       case 'create_approval': result = createApproval_(body); break;
       case 'decide_approval': result = decideApproval_(body); break;
-      case 'dashboard_summary': result = dashboardSummary_(); break;\n      case 'list_tasks': result = {tasks:readObjects_('AI_Tasks').slice(-100)}; break;\n      case 'list_approvals': result = {approvals:readObjects_('AI_Approvals').filter(x=>x.STATUS==='PENDING').slice(-100)}; break;
+      case 'dashboard_summary': result = dashboardSummary_(); break;
+      case 'list_tasks': result = {tasks:readObjects_('AI_Tasks').slice(-100)}; break;
+      case 'list_approvals': result = {approvals:readObjects_('AI_Approvals').filter(x=>x.STATUS==='PENDING').slice(-100)}; break;
       case 'self_test': result = dryRunSelfTest(); break;
       default: return json_({ok:false,error:'UNKNOWN_ACTION'},400);
     }
@@ -66,10 +68,14 @@ function setupWorkforce() {
     let sh = ss.getSheetByName(name);
     if (!sh) sh = ss.insertSheet(name);
     const headers = BEN.SHEETS[name];
-    if (sh.getLastRow() === 0) sh.getRange(1,1,1,headers.length).setValues([headers]);
-    else {
-      const existing = sh.getRange(1,1,1,headers.length).getDisplayValues()[0];
-      if (headers.some((h,i)=>existing[i] !== h)) throw new Error('HEADER_MISMATCH:'+name);
+    if (sh.getLastRow() === 0) {
+      sh.getRange(1,1,1,headers.length).setValues([headers]);
+    } else {
+      const width = Math.min(Math.max(1, sh.getLastColumn()), headers.length);
+      const existing = sh.getRange(1,1,1,width).getDisplayValues()[0];
+      if (existing.some((h,i)=>h && h !== headers[i])) throw new Error('HEADER_MISMATCH:'+name);
+      // Safe additive migration: retain all existing rows and append new header columns only.
+      sh.getRange(1,1,1,headers.length).setValues([headers]);
     }
   });
   const employeeSheet = ss.getSheetByName('AI_Employees');
@@ -108,7 +114,8 @@ function processInternalQueue() {
 function createTask_(b) {
   const type = String(b.taskType || '').toUpperCase();
   if (!type) throw new Error('TASK_TYPE_REQUIRED');
-  const safeInternal = ['HEALTHCHECK','DASHBOARD_REFRESH','CRM_DATA_QUALITY','INTERNAL_RESEARCH','DRAFT_CONTENT','DRAFT_QUOTATION','LEAD_QUALIFICATION','CRM_UPDATE_DRAFT','REGULATORY_CHECK'];\n  const requires = BEN.BLOCKED.indexOf(type) !== -1 || safeInternal.indexOf(type) === -1 || b.requiresApproval === true;
+  const safeInternal = ['HEALTHCHECK','DASHBOARD_REFRESH','CRM_DATA_QUALITY','INTERNAL_RESEARCH','DRAFT_CONTENT','DRAFT_QUOTATION','LEAD_QUALIFICATION','CRM_UPDATE_DRAFT','REGULATORY_CHECK'];
+  const requires = BEN.BLOCKED.indexOf(type) !== -1 || safeInternal.indexOf(type) === -1 || b.requiresApproval === true;
   const id = String(b.taskId || Utilities.getUuid());
   if (findById_('AI_Tasks','TASK_ID',id)) return {taskId:id,duplicate:true};
   const approvalId = requires ? createApproval_({requestedBy:b.assigneeId||'SYSTEM',actionType:type,targetType:'TASK',targetId:id,summary:b.summary||('Approval required for '+type),payload:b.payload||{},riskLevel:'HIGH'}).approvalId : '';
@@ -130,7 +137,10 @@ function claimTask_(taskId, actorId) {
 function completeTask_(b) {
   const t = findById_('AI_Tasks','TASK_ID',b.taskId);
   if (!t) throw new Error('TASK_NOT_FOUND');
-  if (t.REQUIRES_APPROVAL === 'TRUE') {\n    const approval = t.APPROVAL_ID ? findById_('AI_Approvals','APPROVAL_ID',t.APPROVAL_ID) : null;\n    if (!approval || approval.STATUS !== 'APPROVED') throw new Error('APPROVAL_REQUIRED');\n  }
+  if (t.REQUIRES_APPROVAL === 'TRUE') {
+    const approval = t.APPROVAL_ID ? findById_('AI_Approvals','APPROVAL_ID',t.APPROVAL_ID) : null;
+    if (!approval || approval.STATUS !== 'APPROVED') throw new Error('APPROVAL_REQUIRED');
+  }
   updateRowById_('AI_Tasks','TASK_ID',b.taskId,{STATUS:'COMPLETED',RESULT_JSON:JSON.stringify(b.result||{}),ERROR:'',UPDATED_AT:now_()});
   log_(b.actorId||'SYSTEM','TASK_COMPLETED','AI_Tasks',b.taskId,'SUCCESS',b.result||{});
   return {taskId:b.taskId,status:'COMPLETED'};
