@@ -186,7 +186,8 @@ function dashboardSummary_() {
 function dryRunSelfTest() {
   const ss = SpreadsheetApp.openById(BEN.SPREADSHEET_ID);
   const missing = Object.keys(BEN.SHEETS).filter(n=>!ss.getSheetByName(n));
-  const blocked = BEN.BLOCKED.every(x=>BEN.BLOCKED.indexOf(x)!==-1);
+  const requiredBlocked = ['SEND_EMAIL','SEND_WHATSAPP','SEND_CAMPAIGN','SIGN_CONTRACT','CREATE_CONTRACT_COMMITMENT','PAYMENT','TRANSFER','PLACE_ORDER','CONFIRM_PRICE','DISPATCH_WASTE','CHANGE_WASTE_MANIFEST','BOOK_TRANSPORT'];
+  const blocked = requiredBlocked.every(x=>BEN.BLOCKED.indexOf(x)!==-1);
   const testId = 'TEST-'+Utilities.getUuid();
   const task = createTask_({taskId:testId,taskType:'SEND_WHATSAPP',assigneeId:'TEST',summary:'Policy test only'});
   const stored = findById_('AI_Tasks','TASK_ID',testId);
