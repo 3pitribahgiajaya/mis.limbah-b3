@@ -1,0 +1,34 @@
+name: Validate BEN AI Workforce
+on:
+  push:
+    branches: [ben-ai-workforce-v1]
+  pull_request:
+    branches: [ben-ai-workforce-v1]
+jobs:
+  syntax-and-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check Apps Script JavaScript syntax
+        run: cp Code.gs /tmp/Code.js && node --check /tmp/Code.js
+      - name: Validate safety gates and configuration
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const s = fs.readFileSync('Code.gs', 'utf8');
+          const required = [
+            'SEND_WHATSAPP','SEND_EMAIL','SIGN_CONTRACT','PAYMENT',
+            'PENDING_APPROVAL','externalActionExecuted:false',
+            'function dryRunSelfTest()','function createDailyTriggers()',
+            'BEN_AI_API_KEY','LockService'
+          ];
+          const missing = required.filter(x => !s.includes(x));
+          if (missing.length) {
+            console.error('Missing policy/control markers:', missing);
+            process.exit(1);
+          }
+          console.log('Syntax and policy marker checks passed.');
+          NODE
